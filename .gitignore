@@ -2,4 +2,5 @@
 .classpath
 target
 project/target
-
+.settings
+.cache
