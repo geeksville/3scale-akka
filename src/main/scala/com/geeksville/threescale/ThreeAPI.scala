@@ -10,7 +10,7 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import threescale.v3.api.impl.ServiceApiDriver
 
-case class AuthRequest(apiKey: String, serviceId: String, metrics: Map[String, String] = Map())
+case class AuthRequest(userKey: String, serviceId: String, metrics: Map[String, String] = Map())
 
 /**
  * A simple (non Actor) scala style wrapper for the threescale API
@@ -18,12 +18,23 @@ case class AuthRequest(apiKey: String, serviceId: String, metrics: Map[String, S
 class ThreeAPI(providerKey: String) {
   val serviceApi = new ServiceApiDriver(providerKey)
 
+  private val AppRegex = "(.*)\\.(.*)".r
+
   /**
    * Can the client app call this API?
    */
   def authorize(request: AuthRequest): AuthorizeResponse = {
     val params = new ParameterMap()
-    params.add("user_key", request.apiKey)
+    // If the name contains a dot, we assume we are using appid.appkey convention.  Otherwise just a simple user ide
+
+    request.userKey match {
+      case AppRegex(appId, appKey) =>
+        params.add("app_id", appId)
+        params.add("app_key", appKey)
+      case x @ _ =>
+        params.add("user_key", x)
+    }
+
     params.add("service_id", request.serviceId)
 
     if (!request.metrics.isEmpty) {

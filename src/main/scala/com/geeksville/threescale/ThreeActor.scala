@@ -18,8 +18,13 @@ import scala.concurrent.duration._
 class ThreeActor(providerKey: String) extends Actor {
   private val api = new ThreeAPI(providerKey)
 
-  private def ask3scale(req: AuthRequest) = {
-    val resp = blocking { api.authorize(req) }
+  private def ask3scale(req: AuthRequest) = blocking {
+    val resp = try {
+      api.authorize(req)
+    } catch {
+      case ex: ServerError =>
+        new AuthorizeResponse(300, "API validator unreachable")
+    }
 
     // If the server wasn't sure, don't cache anything
 
