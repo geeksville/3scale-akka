@@ -36,7 +36,7 @@ class ThreeAPI(providerKey: Option[String], whitelistIn: Seq[WhitelistApp] = Seq
   def localApproval(reason: String) = {
     val payload = <root>
                     <authorized>true</authorized>
-                    <reason>Local approval - {{rexason}}</reason>
+                    <reason>Local approval - { reason }</reason>
                     <plan>Simulated</plan>
                   </root>.toString
 
