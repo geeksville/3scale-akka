@@ -15,8 +15,8 @@ import scala.concurrent.duration._
  *
  * Usage, keep a singleton of this actor, then send it AuthRequests.  It will reply with AuthorizeResponse
  */
-class ThreeActor(providerKey: Option[String]) extends Actor with ActorLogging {
-  private val api = new ThreeAPI(providerKey)
+class ThreeActor(providerKey: Option[String], whitelistIn: Seq[WhitelistApp] = Seq()) extends Actor with ActorLogging {
+  private val api = new ThreeAPI(providerKey, whitelistIn)
 
   if (!providerKey.isDefined)
     log.error("WARNING: Simulating 3scale because no provider key was specified")
