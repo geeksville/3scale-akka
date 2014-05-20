@@ -15,7 +15,7 @@ import scala.concurrent.duration._
  *
  * Usage, keep a singleton of this actor, then send it AuthRequests.  It will reply with AuthorizeResponse
  */
-class ThreeActor(providerKey: Option[String], whitelistIn: Seq[WhitelistApp] = Seq()) extends Actor with ActorLogging {
+class ThreeActor(providerKey: Option[String], whitelistIn: Seq[WhitelistChecker] = Seq()) extends Actor with ActorLogging {
   private val api = new ThreeAPI(providerKey, whitelistIn)
 
   if (!providerKey.isDefined)

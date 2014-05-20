@@ -16,19 +16,48 @@ import scala.xml._
  */
 case class AuthRequest(userKey: String, serviceId: String, referer: Option[String], metrics: Map[String, String] = Map())
 
+trait WhitelistChecker {
+  def appKey: String
+
+  /**
+   * Return success, failure or I don't know
+   */
+  def authorize(request: AuthRequest): Option[Boolean]
+}
+
 /**
  * If an appkey is listed in a whitelist and the referer matches, then we don't even send the request to
  * threescale.  We handle locally (for speed, robustness and price)
  */
-case class WhitelistApp(appKey: String, referer: String*)
+case class WhitelistApp(appKey: String, referer: String*) extends WhitelistChecker {
+  private val refererSet = Set(referer: _*)
+
+  def authorize(request: AuthRequest): Option[Boolean] = {
+    for {
+      referer <- request.referer
+    } yield {
+      refererSet.contains(referer)
+    }
+  }
+}
+
+/**
+ * A special purpose whitelister that always says yes
+ */
+case class WhitelistOkay(appKey: String) extends WhitelistChecker {
+
+  def authorize(request: AuthRequest): Option[Boolean] = {
+    Some(true)
+  }
+}
 
 /**
  * A simple (non Actor) scala style wrapper for the threescale API
  * If a provider key is not supplied we will only _simulate_ the 3scale API
  */
-class ThreeAPI(providerKey: Option[String], whitelistIn: Seq[WhitelistApp] = Seq()) {
+class ThreeAPI(providerKey: Option[String], whitelistIn: Seq[WhitelistChecker] = Seq()) {
   val whitelist = Map(whitelistIn.map { r =>
-    r.appKey -> Set(r.referer: _*)
+    r.appKey -> r
   }: _*)
 
   val serviceApi = providerKey.map(new ServiceApiDriver(_))
@@ -52,12 +81,11 @@ class ThreeAPI(providerKey: Option[String], whitelistIn: Seq[WhitelistApp] = Seq
     val params = new ParameterMap()
 
     val handleLocal = (for {
-      validReferers <- whitelist.get(request.userKey)
-      referer <- request.referer
+      whitelist <- whitelist.get(request.userKey)
     } yield {
-      val r = validReferers.contains(referer)
+      val r = whitelist.authorize(request)
       //println(s"*** Can local shortcut for $referer yields $r")
-      r
+      r.getOrElse(false)
     }).getOrElse(false)
 
     if (handleLocal) {
