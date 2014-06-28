@@ -10,3 +10,4 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.4-SNAPSHOT"
 
 libraryDependencies += "xom" % "xom" % "1.2.5"
 
+libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.0" % "test"

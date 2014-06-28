@@ -8,6 +8,7 @@ import scala.collection._
 import scala.collection.JavaConverters._
 import scala.concurrent._
 import scala.concurrent.duration._
+import scala.xml._
 
 /**
  * An async threescale client.
@@ -25,8 +26,12 @@ class ThreeActor(providerKey: Option[String], whitelistIn: Seq[WhitelistChecker]
     val resp = try {
       api.authorize(req)
     } catch {
+      // The threescale lib has a bug can can fail in parsing with a NPE at
+      // threescale.v3.api.AuthorizeResponse.createAuthorizationFailed(AuthorizeResponse.java:61)
+      case ex: NullPointerException =>
+        ThreeActor.makeErrorResponse("Malformed 3scale response")
       case ex: ServerError =>
-        new AuthorizeResponse(300, "API validator unreachable")
+        ThreeActor.makeErrorResponse("API validator unreachable")
     }
 
     // If the server wasn't sure, don't cache anything
@@ -42,6 +47,18 @@ class ThreeActor(providerKey: Option[String], whitelistIn: Seq[WhitelistChecker]
   override def receive = {
     case req: AuthRequest =>
       sender ! ask3scale(req)
+  }
+
+}
+
+object ThreeActor {
+  def makeErrorResponse(msg: String) = {
+    val errCode = 300
+
+    val str = <failure code={ errCode.toString }>{ msg }
+    </failure>.toString
+
+    new AuthorizeResponse(errCode, str)
   }
 
 }
