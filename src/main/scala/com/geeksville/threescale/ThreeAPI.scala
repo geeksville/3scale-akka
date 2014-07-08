@@ -30,14 +30,13 @@ trait WhitelistChecker {
  * threescale.  We handle locally (for speed, robustness and price).  If the referrer doesn't match we ignore
  * the request (so it can go to threescale)
  */
-case class WhitelistPossibly(appKey: String, referer: String*) extends WhitelistChecker {
-  private val refererSet = Set(referer: _*)
+case class WhitelistPossibly(appKey: String, referers: String*) extends WhitelistChecker {
 
   def authorize(request: AuthRequest): Option[Boolean] = {
     for {
       referer <- request.referer
     } yield {
-      refererSet.contains(referer)
+      referers.find(referer.startsWith).isDefined
     }
   }
 }
@@ -46,14 +45,14 @@ case class WhitelistPossibly(appKey: String, referer: String*) extends Whitelist
  * If an appkey is listed in a whitelist and the referer matches, then we don't even send the request to
  * threescale.  We handle locally (for speed, robustness and price).  If the referrer doesn't match we disallow the request.
  */
-case class WhitelistStrict(appKey: String, referer: String*) extends WhitelistChecker {
-  private val refererSet = Set(referer: _*)
+case class WhitelistStrict(appKey: String, referers: String*) extends WhitelistChecker {
 
   def authorize(request: AuthRequest): Option[Boolean] = {
 
     val referer = request.referer.getOrElse("invalid")
-    val r = refererSet.contains(referer)
-    //println(s"*** Using whitelist strict with $r, referrer=$referer")
+    val r = referers.find(referer.startsWith).isDefined
+    if (!r)
+      println(s"*** Using whitelist strict with $r, referrer=$referer")
     Some(r)
   }
 }
