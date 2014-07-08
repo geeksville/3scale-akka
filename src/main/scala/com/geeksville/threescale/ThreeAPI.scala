@@ -27,9 +27,10 @@ trait WhitelistChecker {
 
 /**
  * If an appkey is listed in a whitelist and the referer matches, then we don't even send the request to
- * threescale.  We handle locally (for speed, robustness and price)
+ * threescale.  We handle locally (for speed, robustness and price).  If the referrer doesn't match we ignore
+ * the request (so it can go to threescale)
  */
-case class WhitelistApp(appKey: String, referer: String*) extends WhitelistChecker {
+case class WhitelistPossibly(appKey: String, referer: String*) extends WhitelistChecker {
   private val refererSet = Set(referer: _*)
 
   def authorize(request: AuthRequest): Option[Boolean] = {
@@ -42,11 +43,30 @@ case class WhitelistApp(appKey: String, referer: String*) extends WhitelistCheck
 }
 
 /**
+ * If an appkey is listed in a whitelist and the referer matches, then we don't even send the request to
+ * threescale.  We handle locally (for speed, robustness and price).  If the referrer doesn't match we disallow the request.
+ */
+case class WhitelistStrict(appKey: String, referer: String*) extends WhitelistChecker {
+  private val refererSet = Set(referer: _*)
+
+  def authorize(request: AuthRequest): Option[Boolean] = {
+
+    val referer = request.referer.getOrElse("invalid")
+    val r = refererSet.contains(referer)
+    //println(s"*** Using whitelist strict with $r, referrer=$referer")
+    Some(r)
+  }
+}
+
+/**
  * A special purpose whitelister that always says yes
  */
 case class WhitelistOkay(appKey: String) extends WhitelistChecker {
 
   def authorize(request: AuthRequest): Option[Boolean] = {
+    val referer = request.referer.getOrElse("invalid")
+    println(s"*** Using whitelist okay with referrer $referer")
+
     Some(true)
   }
 }
@@ -62,15 +82,18 @@ class ThreeAPI(providerKey: Option[String], whitelistIn: Seq[WhitelistChecker] =
 
   val serviceApi = providerKey.map(new ServiceApiDriver(_))
 
-  def localApproval(reason: String) = {
+  private def makeResponse(authorized: Boolean, reason: String) = {
     val payload = <root>
-                    <authorized>true</authorized>
-                    <reason>Local approval - { reason }</reason>
+                    <authorized>{ authorized }</authorized>
+                    <reason>{ reason }</reason>
                     <plan>Simulated</plan>
                   </root>.toString
 
     new AuthorizeResponse(200, payload)
   }
+
+  private def localApproval(reason: String) = makeResponse(true, reason)
+  private def localDenial(reason: String) = makeResponse(false, reason)
 
   private val AppRegex = "(.*)\\.(.*)".r
 
@@ -86,10 +109,13 @@ class ThreeAPI(providerKey: Option[String], whitelistIn: Seq[WhitelistChecker] =
       val r = whitelist.authorize(request)
       //println(s"*** Can local shortcut for $referer yields $r")
       r.getOrElse(false)
-    }).getOrElse(false)
+    })
 
-    if (handleLocal) {
-      localApproval(s"local whitelist referer=$request.referer")
+    if (handleLocal.isDefined) {
+      if (handleLocal.get)
+        localApproval(s"local whitelist referer=$request.referer")
+      else
+        localDenial(s"Invalid key for your host, are you using your API key?")
     } else {
       // If the name contains a dot, we assume we are using appid.appkey convention.  Otherwise just a simple user ide
 
