@@ -64,7 +64,7 @@ case class WhitelistOkay(appKey: String) extends WhitelistChecker {
 
   def authorize(request: AuthRequest): Option[Boolean] = {
     val referer = request.referer.getOrElse("invalid")
-    println(s"*** Using whitelist okay with referrer $referer")
+    //println(s"*** Using whitelist okay with referrer $referer")
 
     Some(true)
   }
