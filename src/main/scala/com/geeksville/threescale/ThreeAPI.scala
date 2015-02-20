@@ -1,5 +1,7 @@
 package com.geeksville.threescale
 
+import java.net.{Inet4Address, SocketException, NetworkInterface, InetAddress}
+
 import akka.actor._
 import akka.pattern._
 import akka.util.Timeout
@@ -96,6 +98,28 @@ class ThreeAPI(providerKey: Option[String], whitelistIn: Seq[WhitelistChecker] =
 
   private val AppRegex = "(.*)\\.(.*)".r
 
+  private lazy val localIPAddresses = {
+    val interfaces = try {
+      NetworkInterface.getNetworkInterfaces().asScala
+    } catch {
+      case ex: SocketException =>
+        // Android sometimes fails to parse some network names and barfs internally
+        Seq[NetworkInterface]().toIterator
+    }
+    val iface = interfaces.filter { i => i.isUp && !i.isLoopback && !i.isVirtual }
+    iface.flatMap { i =>
+      val addrs = i.getInetAddresses.asScala
+      addrs.flatMap { a =>
+        a match {
+          case x: Inet4Address => Some(x)
+          case _ => None
+        }
+      }
+    }.toSeq
+  }
+
+  lazy val isDevelopmentServer = localIPAddresses.find(_.getHostAddress.startsWith("192.168.")).isDefined
+
   /**
    * Can the client app call this API?
    */
@@ -113,8 +137,13 @@ class ThreeAPI(providerKey: Option[String], whitelistIn: Seq[WhitelistChecker] =
     if (handleLocal.isDefined) {
       if (handleLocal.get)
         localApproval(s"local whitelist referer=$request.referer")
-      else
-        localDenial(s"Invalid key for your host, are you using your API key?")
+      else {
+        if(isDevelopmentServer)
+          localApproval("You seem to be running on a development LAN, so ignoring bad API key")
+        else
+          localDenial(s"Invalid key for your host (${request.referer}), are you using your API key?")
+      }
+
     } else {
       // If the name contains a dot, we assume we are using appid.appkey convention.  Otherwise just a simple user ide
 
